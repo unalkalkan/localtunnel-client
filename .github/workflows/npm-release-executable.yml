@@ -1,0 +1,67 @@
+name: Build and Release NPM Executable
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Triggers the action when pushing a version tag like v1.0.0
+
+jobs:
+  build:
+    name: Build Executable
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Node.js environment
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'  # Use whatever Node.js version is required
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Step 4: Build the executable (assumes `pkg` is used)
+      - name: Package as Linux executable
+        run: npx pkg . --target node16-linux-x64 --output ./dist/my-library-linux
+
+      # Step 5: Upload the build artifact for future steps (optional)
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: linux-executable
+          path: ./dist/my-library-linux
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      # Step 1: Checkout the code again to sync with build job
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Download the built executable
+      - name: Download build artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: linux-executable
+          path: ./dist
+
+      # Step 3: Create a release and attach the Linux executable
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref }} # Tag name from the trigger
+          release_name: "Release ${{ github.ref }}"
+          draft: false
+          prerelease: false
+          artifacts: ./dist/my-library-linux
+          artifact_content_type: application/octet-stream
